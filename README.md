@@ -1,0 +1,243 @@
+[сайт4.html](https://github.com/user-attachments/files/23987993/4.html)
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Знайомства UA • Український сайт знайомств</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Playfair+Display:wght@700&display=swap');
+        body {
+            margin:0; padding:0; font-family:'Roboto',sans-serif; background:linear-gradient(135deg,#0057b7,#ffd700);
+            color:#0057b7; height:100vh; display:flex; align-items:center; justify-content:center;
+            background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path fill="%23ffd70020" d="M0 0h50v50H0zM50 50h50v50H50z"/><path fill="none" stroke="%23ffd70040" stroke-width="3" d="M25 10, 40 30, 25 50, 10 30z M75 60, 90 80, 75 100, 60 80z"/></svg>');
+            background-size:200px;
+        }
+        .card {
+            background:white; width:92%; max-width:420px; border-radius:20px; overflow:hidden;
+            box-shadow:0 20px 40px rgba(0,0,0,0.3); text-align:center; padding:20px;
+        }
+        h1 {font-family:'Playfair Display',serif; color:#0057b7; margin:10px 0 30px;}
+        button {background:#ffd700; color:#0057b7; border:none; padding:14px 24px; margin:8px; border-radius:50px;
+            font-weight:bold; cursor:pointer; font-size:16px; width:90%;}
+        button:hover {background:#ffed4e;}
+        input, select, textarea {width:90%; padding:14px; margin:10px; border:2px solid #0057b7; border-radius:12px;}
+        .hidden {display:none;}
+        .profile-card {background:#fff; margin:15px auto; padding:15px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.1);}
+        .like {background:#ff4757; color:white;}
+        .dislike {background:#2ed573;}
+        .match {background:#f39c12; color:white;}
+        #photo-upload {margin:15px 0;}
+        #preview-photo {
+            width:100%; max-height:250px; object-fit:cover; border-radius:15px; margin:10px 0; border:3px dashed #0057b7;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>Знайомства UA</h1>
+
+    <!-- Сторінка входу -->
+    <div id="login-page">
+        <button onclick="login('google')">Увійти через Google</button>
+        <button onclick="login('email')">Увійти email + пароль</button>
+        <input type="email" id="email" placeholder="Електронна пошта">
+        <input type="password" id="pass" placeholder="Пароль">
+        <button onclick="register()">Зареєструватися</button>
+    </div>
+
+    <!-- Форма профілю (з фото!) -->
+    <div id="profile-page" class="hidden">
+        <h2>Розкажи про себе</h2>
+
+        <input type="file" id="photo-upload" accept="image/*">
+        <img id="preview-photo" src="" alt="Твоє фото" style="display:none;">
+
+        <select id="goal">
+            <option>Мета знайомства</option>
+            <option>Дружба</option>
+            <option>Серйозні стосунки</option>
+            <option>Шлюб</option>
+        </select>
+        <input id="hobbies" placeholder="Улюблені захоплення (через кому)">
+        <input id="age" type="number" placeholder="Твій вік">
+        <input id="ageRange" placeholder="Бажаний вік партнера (наприклад 22-35)">
+        <textarea id="about" placeholder="Коротко про себе..."></textarea>
+        <button onclick="saveProfile()">Зберегти та почати пошук</button>
+    </div>
+
+    <!-- Пошук -->
+    <div id="search-page" class="hidden">
+        <h2>Свайпай</h2>
+        <div id="cards"></div>
+        <p id="no-more" class="hidden">Більше анкет немає... Повернись пізніше!</p>
+    </div>
+
+    <!-- Чат -->
+    <div id="chat-page" class="hidden">
+        <h2>Чат з <span id="partner-name"></span></h2>
+        <div id="messages" style="height:400px; overflow-y:scroll; background:#f8f9fa; padding:15px; border-radius:15px;"></div>
+        <input id="msg-input" placeholder="Напиши повідомлення..." style="width:70%">
+        <button onclick="sendMessage()">Надіслати</button>
+        <button onclick="backToSearch()">Назад</button>
+    </div>
+</div>
+
+<script>
+// === Локальна база ===
+let currentUser = null;
+let users = JSON.parse(localStorage.getItem('znayomstva_users')) || [
+    {id:1, name:"Оля", age:24, city:"Київ", hobbies:"вишиванки, книги, подорожі", about:"Люблю Україну та гарних людей", photo:"https://i.imgur.com/8z8Yw1Q.jpg", completed:true},
+    {id:2, name:"Марічка", age:27, city:"Львів", hobbies:"танці, музика, гори", about:"Шукаю того єдиного", photo:"https://i.imgur.com/2b8Yw1Q.jpg", completed:true},
+    {id:3, name:"Андрій", age:29, city:"Одеса", hobbies:"море, спорт, гумор", about:"Позитивний та надійний", photo:"https://i.imgur.com/3c8Yw1Q.jpg", completed:true}
+];
+let likes = JSON.parse(localStorage.getItem('znayomstva_likes')) || {};
+let chats = JSON.parse(localStorage.getItem('znayomstva_chats')) || {};
+
+// === Завантаження фото + попередній перегляд ===
+document.getElementById('photo-upload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const img = document.getElementById('preview-photo');
+            img.src = ev.target.result;
+            img.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// === Вхід ===
+function login(type) {
+    if (type === 'google') alert('Google вхід тимчасово вимкнено в локальній версії');
+    if (type === 'email') {
+        const email = prompt('Введи будь-який email:');
+        currentUser = {id:Date.now(), email:email, name:email.split('@')[0]};
+        checkProfile();
+    }
+}
+function register() {
+    const email = document.getElementById('email').value || prompt('Введи email:');
+    const pass = document.getElementById('pass').value || prompt('Введи пароль:');
+    if (email && pass) {
+        currentUser = {id:Date.now(), email:email, name:email.split('@')[0]};
+        checkProfile();
+    }
+}
+
+function checkProfile() {
+    const saved = users.find(u => u.id === currentUser.id);
+    if (saved && saved.completed) {
+        showSearch();
+    } else {
+        document.getElementById('login-page').classList.add('hidden');
+        document.getElementById('profile-page').classList.remove('hidden');
+    }
+}
+
+// === Збереження профілю з фото ===
+function saveProfile() {
+    const photoInput = document.getElementById('photo-upload');
+    const photoData = document.getElementById('preview-photo').src || "https://i.imgur.com/7z8Yw1Q.jpg";
+
+    const profile = {
+        id: currentUser.id,
+        name: currentUser.email.split('@')[0],
+        age: +document.getElementById('age').value || 25,
+        goal: document.getElementById('goal').value,
+        hobbies: document.getElementById('hobbies').value,
+        ageRange: document.getElementById('ageRange').value,
+        about: document.getElementById('about').value,
+        photo: photoData.includes('data:image') ? photoData : "https://i.imgur.com/7z8Yw1Q.jpg",
+        completed: true
+    };
+
+    users = users.filter(u => u.id !== currentUser.id);
+    users.push(profile);
+    localStorage.setItem('znayomstva_users', JSON.stringify(users));
+    showSearch();
+}
+
+function showSearch() {
+    document.getElementById('profile-page').classList.add('hidden');
+    document.getElementById('search-page').classList.remove('hidden');
+    currentCardIndex = 0;
+    showNextCard();
+}
+
+let currentCardIndex = 0;
+function showNextCard() {
+    const cardsDiv = document.getElementById('cards');
+    cardsDiv.innerHTML = '';
+    const available = users.filter(u => u.id !== currentUser.id && u.completed);
+    if (currentCardIndex >= available.length) {
+        document.getElementById('no-more').classList.remove('hidden');
+        return;
+    }
+    const person = available[currentCardIndex];
+    const card = document.createElement('div');
+    card.className = 'profile-card';
+    card.innerHTML = `
+        <img src="${person.photo}" style="width:100%; height:300px; object-fit:cover; border-radius:15px;">
+        <h3>${person.name}, ${person.age} ${person.city?'• '+person.city:''}</h3>
+        <p><strong>Мета:</strong> ${person.goal || '—'}</p>
+        <p><strong>Про себе:</strong> ${person.about || '—'}</p>
+        <button class="dislike" onclick="swipe(false)">Не подобається</button>
+        <button class="like" onclick="swipe(true)">Подобається</button>
+    `;
+    cardsDiv.appendChild(card);
+}
+
+function swipe(liked) {
+    const person = users.find(u => u.id === users.filter(u=>u.completed && u.id!==currentUser.id)[currentCardIndex].id);
+    if (!likes[currentUser.id]) likes[currentUser.id] = [];
+    likes[currentUser.id].push({to:person.id, like:liked});
+    localStorage.setItem('znayomstva_likes', JSON.stringify(likes));
+
+    if (liked && likes[person.id] && likes[person.id].some(l => l.to === currentUser.id && l.like)) {
+        alert(`Ура! У вас матч з ${person.name}!`);
+        openChat(person);
+    }
+    currentCardIndex++;
+    showNextCard();
+}
+
+function openChat(partner) {
+    document.getElementById('search-page').classList.add('hidden');
+    document.getElementById('chat-page').classList.remove('hidden');
+    document.getElementById('partner-name').textContent = partner.name;
+    window.currentPartner = partner;
+    loadMessages();
+}
+
+function loadMessages() {
+    const key = [currentUser.id, window.currentPartner.id].sort().join('_');
+    const messages = chats[key] || [];
+    const div = document.getElementById('messages');
+    div.innerHTML = messages.map(m => 
+        `<div style="text-align:${m.from===currentUser.id?'right':'left'}; margin:10px; background:${m.from===currentUser.id?'#ffd700':'#ddd'}; padding:10px; border-radius:15px; display:inline-block; max-width:80%;">${m.text}</div><br>`
+    ).join('');
+    div.scrollTop = div.scrollHeight;
+}
+
+function sendMessage() {
+    const input = document.getElementById('msg-input');
+    if (!input.value.trim()) return;
+    const key = [currentUser.id, window.currentPartner.id].sort().join('_');
+    if (!chats[key]) chats[key] = [];
+    chats[key].push({from: currentUser.id, text: input.value, time: new Date()});
+    localStorage.setItem('znayomstva_chats', JSON.stringify(chats));
+    input.value = '';
+    loadMessages();
+}
+
+function backToSearch() {
+    document.getElementById('chat-page').classList.add('hidden');
+    document.getElementById('search-page').classList.remove('hidden');
+    currentCardIndex = 0;
+    showNextCard();
+}
+</script>
+</body>
+</html>
